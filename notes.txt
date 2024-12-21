@@ -1,0 +1,253 @@
+lib to install {
+    pip install fastapi[all]
+    pip install sqlalchemy
+    pip install psycopg2-binary
+    pip install passlib[bcrypt]
+    pip install python-jose[cryptography]
+    pip install alembic
+}
+
+deep copy and shallow copy, arr = [1,2,3,4,5,6]; x = arr[5]; y = x; x = arr[2] ?
+
+implement password hashing {
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+    def hash_password(password: str):
+        return pwd_context.hash(password) 
+}
+
+routing {
+    from fastapi import APIRouter
+    router = APIRouter()
+    @router.get("/user"):
+        return user
+
+    from routers import users, posts
+    ...
+    app.include_router(posts.router)
+    app.include_router(users.router)
+}
+
+router prefix {
+    router = APIRouter(
+        prefix="/user",
+        tags=["User"]
+    )
+}
+
+Logging in User {
+    client -> (email, password) -> Server -> hash input password -> Compare(hash_password, db_hash_password)
+
+    util ->
+    def verify_password(plain_password, hashed_password):
+        return pwd_context.verify(plain_password, hashed_password)
+   
+    auth ->
+    user = db.query(models.User).filter(models.User.email == user_cred.email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if not utils.verify_password(user_cred.password, user.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    return {"message": "Login successful"}  
+} 
+
+Session based authentication {
+    Stateful method
+
+    ... learn about it ...
+}
+
+JWT authentication {
+    Stateless method
+
+    client -> "/login" (email, password) -> API (check if valid and create JWT token)
+    API -> JWT token -> client
+    client -> "/post" + token -> API (verify token)
+    API -> data -> client
+
+    JWT Token {
+        Header { # not hashed
+            "alg" : "H256",
+            "typ" : "JWT"
+        }
+        Payload { # not hashed
+            # can be anything
+            "sub" : "12345678",
+            "name" : "adcd",
+            ...
+        }
+        Verify Signature { # hashed using our secret password
+            ...
+        }
+    }
+    Eg ->
+    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+    eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.
+    SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+
+    Process of Signature {
+        Header + Payload(id, role, expiry) + Secret = signature
+        Token (which is send to client) = Header + Payload(id, role, expiry) + signature
+
+        Input token(broken into) -> Input-Header + Input-Payload + Input-Signature
+        Test-Signature = Input-Header + Input-Payload + Secret
+        Compare(Input-Signature and Test-Signature )
+    }
+
+    Code {
+        oauth2 ->
+        from jose import JWTError, jwt
+        from datetime import datetime, timedelta
+        from fastapi.security import OAuth2PasswordBearer
+
+        oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login") # to get the schemea of the oauth2 authenication
+
+        SECRET = ""
+        ALGORITHM = "HS256"
+        ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+        def create_access_token(data: dict):
+            to_encode = data.copy()
+            expire = datetime.now(timezone.utc) + timedelta(minutes = ACCESS_TOKEN_EXPIRE_MINUTES)
+            to_encode.update({"exp": expire})
+            return jwt.encode(to_encode, SECRET, algorithm = ALGORITHM)
+
+        def verify_access_token(token:str, credential_expection):
+            try:
+                # decode the payload -> get the id inside payload -> 
+                payload = jwt.decode(token, SECRET, algorithms=ALGORITHM)
+                payload_id: str = payload.get("user_id")
+                if  payload_id is None:
+                    raise credential_expection
+                token_data = schemas.TokenPayload(id = payload) # to check if schema matches to TokenPayload schema
+                return token_data[id]
+            except JWTError:
+                raise credential_expection
+
+        def get_current_user(token: str = Depends(oauth2_scheme)): # taking in as dependency from the header from the request
+            # does the job of getting the token from OAuth2 and sending it for verification.           
+            credential_exception = HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials", headers={"WWW-Authentication": "Bearer"})
+            
+            token = verify_access_token(token, credential_exception)
+            user = db.query(models.User).filter(models.User.id == token.id).first()
+
+            return user
+
+
+        auth ->
+        # creating token
+            access_token = oauth2.create_access_token(data={"user_id" : user.id})
+            return {"token": access_token, "token_type": "bearer"}
+        # checking token
+            def create_post(..., user_id : int = Depends(oauth2.get_current_user))
+    }
+}
+
+what is bearer {
+
+}
+
+setting up foreign key and referential integrity {
+    class Post(Base):
+        ...
+        user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+}
+
+path parameters {
+    @app.get("/hello/{name}")
+    def hello(name: str = "User"):
+        return { "message" : f"hi {name}"}
+}
+
+query parameters {
+    Used for pagination, filtering
+
+    @app.get("/hello")
+    def hello(name: str = "User"):
+        return { "message" : f"hi {name}"}
+}
+
+search feature {
+    def get_all_post(db: Session = Depends(get_db), curr_user : int = Depends(oauth2.get_current_user), limit:int = 10, skip:int = 0, search: Optional[str] = ''):
+        posts = db.query(models.Post).filter(models.Post.user_id == curr_user.id).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+        return posts
+    
+    eg ->
+    {{URL}}post?limit=5&search=something%20new
+}
+
+setting up enviornment variables {
+    from pydantic_settings import BaseSettings
+    import os
+
+    DOTENV = os.path.join(os.path.dirname(__file__), ".env")
+
+    class Settings(BaseSettings):
+        database_hostname: str
+        database_port: int
+        database_name: str
+        database_username: str
+        database_password: str
+        secret_key: str
+        algorithm: str
+        access_token_expiry_minutes: int
+
+        class Config:
+            env_file = DOTENV
+
+    settings = Settings()
+}
+
+dealing with user using email again to signup {
+    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Email is already registered")
+}   
+
+composite key {
+    Primary key that spans multiple Columns
+    Since PK must be unique, this can be used to ensure no user can like a post twice (table -> post_id, user_id)
+}
+
+Joins {
+    https://neon.tech/postgresql/postgresql-tutorial/postgresql-joins
+}
+
+Query to know how many posts by each user {
+    SELECT user.id, COUNT(post.id) 
+    FROM posts RIGHT JOIN users 
+    ON post.owner_id = user.id GROUP BY user.id;
+}
+
+Query to know number of votes on post with id = 1 {
+    SELECT posts.*, COUNT(votes.post_id) as votes 
+    FROM posts LEFT JOIN votes 
+    ON posts.id = votes.post_id 
+    WHERE posts.id = 4 
+    GROUP BY posts.id;
+
+    sqlalchemy code:
+    posts = db.query(models.Post, func.count(models.Vote.post_id).label("votes"))
+    .join(models.Vote, 
+    models.Vote.post_id == models.Post.id, isouter=True)
+    .filter(models.Post.title.contains(search))
+    .group_by(models.Post.id).all()
+}
+
+Data Migration {
+    Concepts like tracking and rolling back code easily using tools like Git, 
+    So the aim to implement such concepts to a database
+    Alembic allows us to incrementally track changes to db and rollback changes to any point in time
+}
+
+Alembic {
+    alembic init alembic
+    ...
+}
+
+CORS {
+    Cross Origin Resource Sharing allows you to make requests from a web brower on one domain to a server on a differnt domain.
+    By default our API will only allow web browers running on the same domain as our server to make requests to it.
+}
