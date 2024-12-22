@@ -25,4 +25,4 @@ app.include_router(votes.router)
 
 @app.get("/")
 def root():
-    return {"message": "Hello from Post Votes API"}
+    return {"message": "Hello from Post Votes API version-0.1"}

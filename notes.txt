@@ -251,3 +251,37 @@ CORS {
     Cross Origin Resource Sharing allows you to make requests from a web brower on one domain to a server on a differnt domain.
     By default our API will only allow web browers running on the same domain as our server to make requests to it.
 }
+
+Gunicorn {
+    Gunicorn, also known as "Green Unicorn", is a Python HTTP server 
+    that interacts with web applications using the WSGI protocol
+    WSGI {
+        (Web Server Gateway Interface) is  a simple calling convention 
+        for web servers to forward requests to web applications or frameworks 
+        written in the Python programming language;
+        issuitable for synchronous programming or application.
+    } 
+    ASGI  {
+        ASGI - ASGI stands for Asynchronous Server Gateway Interface and is suitable 
+        for asynchronous applications. It supports handling long-lived connections, 
+        WebSockets, and other non-HTTP protocols.
+        uvicorn uses ASGI, gunicorn does not.
+    }
+}
+
+Nginx {
+    High performance web server that can act as a proxy.
+    Can handle ssl termination.
+    Proxy {
+        A proxy server refers to a server that acts as an 
+        intermediary between the request made by clients and
+        a particular server for some services or requests for some resources
+    }
+    Client -> (HTTPS) -> Nginx -> (HTTP) -> Gunicorn
+}
+
+SSL - Certbot {
+    sudo snap install --classic certbot
+    sudo certbot --nginx
+    https://social-post.mooo.com/
+}
